@@ -3,6 +3,7 @@ import json
 from typing import Any, Dict, List, Optional
 import typer
 from sourcegraph_search.client import SourcegraphClient, SourcegraphError
+from sourcegraph_search.formatters import MarkdownFormatter, JSONFormatter
 
 app = typer.Typer(
     help="CLI tool to search code and navigate definitions/references via Sourcegraph's GraphQL API.",
@@ -87,17 +88,11 @@ def search_cmd(
 
     try:
         client = _get_client(endpoint, token, timeout)
-        result_data = client.search(query)
+        result_models = client.search(query)
         
-        if json_output:
-            typer.echo(json.dumps(result_data, indent=2))
-        else:
-            formatted = client.format_results(
-                result_data,
-                context_window=context_window,
-                max_results=count
-            )
-            typer.echo(formatted)
+        formatter = JSONFormatter() if json_output else MarkdownFormatter()
+        formatted = formatter.format_search(result_models, context_window=context_window)
+        typer.echo(formatted)
     except SourcegraphError as err:
         typer.secho(f"Error: {err}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -139,31 +134,13 @@ def tree_cmd(
             return
 
         for entry in entries:
-            name = entry.get("name", "")
-            is_dir = entry.get("isDirectory", False)
-            if is_dir:
-                typer.echo(f"📁 {name}/")
+            if entry.is_directory:
+                typer.echo(f"📁 {entry.name}/")
             else:
-                typer.echo(f"📄 {name}")
+                typer.echo(f"📄 {entry.name}")
     except SourcegraphError as err:
         typer.secho(f"Error: {err}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-
-def _format_nodes(nodes: List[Dict[str, Any]]) -> str:
-    lines = []
-    for node in nodes:
-        resource = node.get("resource", {})
-        repo_name = resource.get("repository", {}).get("name", "")
-        file_path = resource.get("path", "")
-        
-        rng = node.get("range", {})
-        start = rng.get("start", {})
-        line_num = int(start.get("line", 0)) + 1  # LSIF line numbers are 0-indexed
-        char_num = int(start.get("character", 0)) + 1
-        
-        url = node.get("url", "")
-        lines.append(f"- **{repo_name}/{file_path}#L{line_num}:{char_num}** -> {url}")
-    return "\n".join(lines)
 
 @app.command(name="define")
 def define_cmd(
@@ -179,19 +156,12 @@ def define_cmd(
 ):
     """Find definitions for the symbol at the given file position (LSIF/SCIP)."""
     try:
-        # Convert to 0-indexed for LSIF/SCIP API
         client = _get_client(endpoint, token, timeout)
-        lsif = client.get_code_intel(repo, path, line - 1, character - 1, rev)
-        definitions = lsif.get("definitions", {}).get("nodes", [])
+        intel_result = client.get_code_intel(repo, path, line - 1, character - 1, rev)
         
-        if json_output:
-            typer.echo(json.dumps(definitions, indent=2))
-        else:
-            if not definitions:
-                typer.echo("No definitions found.")
-            else:
-                typer.echo("# Definitions\n")
-                typer.echo(_format_nodes(definitions))
+        formatter = JSONFormatter() if json_output else MarkdownFormatter()
+        formatted = formatter.format_definitions(intel_result.definitions)
+        typer.echo(formatted)
     except SourcegraphError as err:
         typer.secho(f"Error: {err}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
@@ -210,19 +180,12 @@ def refs_cmd(
 ):
     """Find references for the symbol at the given file position (LSIF/SCIP)."""
     try:
-        # Convert to 0-indexed for LSIF/SCIP API
         client = _get_client(endpoint, token, timeout)
-        lsif = client.get_code_intel(repo, path, line - 1, character - 1, rev)
-        references = lsif.get("references", {}).get("nodes", [])
+        intel_result = client.get_code_intel(repo, path, line - 1, character - 1, rev)
         
-        if json_output:
-            typer.echo(json.dumps(references, indent=2))
-        else:
-            if not references:
-                typer.echo("No references found.")
-            else:
-                typer.echo("# References\n")
-                typer.echo(_format_nodes(references))
+        formatter = JSONFormatter() if json_output else MarkdownFormatter()
+        formatted = formatter.format_references(intel_result.references)
+        typer.echo(formatted)
     except SourcegraphError as err:
         typer.secho(f"Error: {err}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
