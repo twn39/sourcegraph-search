@@ -120,7 +120,7 @@ def test_search_parsing(mocker):
     mock_post = mocker.patch.object(client, "_post_graphql", return_value=mock_data)
 
     res = client.search("test")
-    from sourcegraph_search.client import GRAPHQL_SEARCH_QUERY
+    from sourcegraph_search.queries import GRAPHQL_SEARCH_QUERY
 
     mock_post.assert_called_once_with(GRAPHQL_SEARCH_QUERY, {"query": "test"})
     assert isinstance(res, SearchResults)
@@ -523,7 +523,7 @@ def test_search_parsing_with_content(mocker):
     }
     mock_post = mocker.patch.object(client, "_post_graphql", return_value=mock_data)
     client.search("test", fetch_content=True)
-    from sourcegraph_search.client import GRAPHQL_SEARCH_WITH_CONTENT_QUERY
+    from sourcegraph_search.queries import GRAPHQL_SEARCH_WITH_CONTENT_QUERY
 
     mock_post.assert_called_once_with(
         GRAPHQL_SEARCH_WITH_CONTENT_QUERY, {"query": "test"}
@@ -547,7 +547,7 @@ async def test_async_search_parsing_with_content(mocker):
     }
     mock_post = mocker.patch.object(client, "_post_graphql", return_value=mock_data)
     await client.search("test", fetch_content=True)
-    from sourcegraph_search.client import GRAPHQL_SEARCH_WITH_CONTENT_QUERY
+    from sourcegraph_search.queries import GRAPHQL_SEARCH_WITH_CONTENT_QUERY
 
     mock_post.assert_called_once_with(
         GRAPHQL_SEARCH_WITH_CONTENT_QUERY, {"query": "test"}

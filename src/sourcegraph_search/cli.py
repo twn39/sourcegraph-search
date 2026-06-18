@@ -1,7 +1,11 @@
 import os
 from typing import Optional
 import typer
-from sourcegraph_search.client import SourcegraphClient, SourcegraphError
+from sourcegraph_search.client import (
+    SourcegraphClient,
+    SourcegraphError,
+    SourcegraphClientProtocol,
+)
 from sourcegraph_search.formatters import MarkdownFormatter, JSONFormatter
 
 app = typer.Typer(
@@ -39,13 +43,19 @@ def main_callback(
         typer.echo(ctx.get_help())
 
 
-def _get_client(endpoint: str, token: Optional[str], timeout: int) -> SourcegraphClient:
+# Configurable client factory for dependency injection / mock client override in unit tests
+CLIENT_FACTORY = SourcegraphClient
+
+
+def _get_client(
+    endpoint: str, token: Optional[str], timeout: int
+) -> SourcegraphClientProtocol:
     api_token = (
         token
         or os.environ.get("SOURCEGRAPH_TOKEN")
         or os.environ.get("SOURCEGRAPH_API_TOKEN")
     )
-    return SourcegraphClient(endpoint=endpoint, token=api_token, timeout=float(timeout))
+    return CLIENT_FACTORY(endpoint=endpoint, token=api_token, timeout=float(timeout))
 
 
 @app.command(name="search")
