@@ -1,6 +1,5 @@
 import os
-import json
-from typing import Any, Dict, List, Optional
+from typing import Optional
 import typer
 from sourcegraph_search.client import SourcegraphClient, SourcegraphError
 from sourcegraph_search.formatters import MarkdownFormatter, JSONFormatter
@@ -86,7 +85,7 @@ def search_cmd(
 
     try:
         client = _get_client(endpoint, token, timeout)
-        result_models = client.search(query)
+        result_models = client.search(query, fetch_content=(context_window > 0))
 
         formatter = JSONFormatter() if json_output else MarkdownFormatter()
         formatted = formatter.format_search(

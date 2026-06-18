@@ -1,8 +1,12 @@
-from sourcegraph_search.client import SourcegraphClient, SourcegraphError
+from sourcegraph_search.client import (
+    SourcegraphClient,
+    AsyncSourcegraphClient,
+    SourcegraphError,
+)
 
 
 def hello() -> str:
     return "Hello from sourcegraph-search!"
 
 
-__all__ = ["SourcegraphClient", "SourcegraphError", "hello"]
+__all__ = ["SourcegraphClient", "AsyncSourcegraphClient", "SourcegraphError", "hello"]
