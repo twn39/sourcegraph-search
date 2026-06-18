@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
 from typing import List, Union
 
+
 @dataclass
 class SymbolMatch:
     name: str
@@ -8,10 +9,12 @@ class SymbolMatch:
     container_name: str
     url: str
 
+
 @dataclass
 class LineMatch:
     line_number: int
     preview: str
+
 
 @dataclass
 class FileMatchResult:
@@ -22,6 +25,7 @@ class FileMatchResult:
     line_matches: List[LineMatch]
     symbols: List[SymbolMatch]
 
+
 @dataclass
 class CommitResult:
     repository: str
@@ -31,12 +35,15 @@ class CommitResult:
     author_date: str
     url: str
 
+
 @dataclass
 class RepositoryResult:
     name: str
     url: str
 
+
 SearchResultItem = Union[FileMatchResult, CommitResult, RepositoryResult]
+
 
 @dataclass
 class SearchResults:
@@ -45,12 +52,14 @@ class SearchResults:
     limit_hit: bool
     items: List[SearchResultItem]
 
+
 @dataclass
 class TreeEntry:
     name: str
     path: str
     is_directory: bool
     url: str
+
 
 @dataclass
 class CodeIntelLocation:
@@ -59,6 +68,7 @@ class CodeIntelLocation:
     line: int
     character: int
     url: str
+
 
 @dataclass
 class CodeIntelResult:

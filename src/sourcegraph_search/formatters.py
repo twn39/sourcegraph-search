@@ -4,8 +4,13 @@ from dataclasses import asdict
 from typing import List
 
 from sourcegraph_search.models import (
-    SearchResults, FileMatchResult, CommitResult, RepositoryResult, CodeIntelLocation
+    SearchResults,
+    FileMatchResult,
+    CommitResult,
+    RepositoryResult,
+    CodeIntelLocation,
 )
+
 
 class BaseFormatter(ABC):
     @abstractmethod
@@ -28,11 +33,13 @@ class MarkdownFormatter(BaseFormatter):
     def format_search(self, results: SearchResults, context_window: int = 10) -> str:
         output = []
         output.append("# Sourcegraph Search Results\n")
-        output.append(f"Found {results.match_count} matches across {results.result_count} results\n")
-        
+        output.append(
+            f"Found {results.match_count} matches across {results.result_count} results\n"
+        )
+
         if results.limit_hit:
             output.append("(Result limit reached, try a more specific query)\n")
-        
+
         output.append("")
 
         if not results.items:
@@ -41,15 +48,21 @@ class MarkdownFormatter(BaseFormatter):
 
         for i, item in enumerate(results.items):
             if isinstance(item, FileMatchResult):
-                output.append(f"## Result {i+1}: {item.repository}/{item.path} (File)\n")
+                output.append(
+                    f"## Result {i + 1}: {item.repository}/{item.path} (File)\n"
+                )
                 if item.url:
                     output.append(f"URL: {item.url}\n")
 
                 if item.symbols:
                     output.append("### Symbols:")
                     for sym in item.symbols:
-                        container_str = f" in {sym.container_name}" if sym.container_name else ""
-                        output.append(f"- **{sym.name}** ({sym.kind}){container_str} -> {sym.url}")
+                        container_str = (
+                            f" in {sym.container_name}" if sym.container_name else ""
+                        )
+                        output.append(
+                            f"- **{sym.name}** ({sym.kind}){container_str} -> {sym.url}"
+                        )
                     output.append("")
 
                 if item.line_matches:
@@ -61,14 +74,14 @@ class MarkdownFormatter(BaseFormatter):
                             start_line = max(1, lm.line_number - context_window)
                             for j in range(start_line - 1, lm.line_number - 1):
                                 if 0 <= j < len(lines):
-                                    output.append(f"{j+1}| {lines[j]}")
+                                    output.append(f"{j + 1}| {lines[j]}")
 
                             output.append(f"{lm.line_number}|  {lm.preview}")
 
                             end_line = lm.line_number + context_window
                             for j in range(lm.line_number, end_line):
                                 if 0 <= j < len(lines):
-                                    output.append(f"{j+1}| {lines[j]}")
+                                    output.append(f"{j + 1}| {lines[j]}")
 
                             output.append("```\n")
                         else:
@@ -77,7 +90,9 @@ class MarkdownFormatter(BaseFormatter):
                             output.append("```\n")
 
             elif isinstance(item, CommitResult):
-                output.append(f"## Result {i+1}: {item.repository} (Commit {item.oid[:8]})\n")
+                output.append(
+                    f"## Result {i + 1}: {item.repository} (Commit {item.oid[:8]})\n"
+                )
                 output.append(f"Author: {item.author_name} ({item.author_date})")
                 if item.url:
                     output.append(f"URL: {item.url}")
@@ -85,7 +100,7 @@ class MarkdownFormatter(BaseFormatter):
                 output.append(f"Message: {first_line_msg}\n")
 
             elif isinstance(item, RepositoryResult):
-                output.append(f"## Result {i+1}: {item.name} (Repository)\n")
+                output.append(f"## Result {i + 1}: {item.name} (Repository)\n")
                 if item.url:
                     output.append(f"URL: {item.url}\n")
 
@@ -94,10 +109,12 @@ class MarkdownFormatter(BaseFormatter):
     def _format_locations(self, title: str, locations: List[CodeIntelLocation]) -> str:
         if not locations:
             return f"No {title.lower()} found."
-        
+
         output = [f"# {title}\n"]
         for loc in locations:
-            output.append(f"- **{loc.repository}/{loc.path}#L{loc.line}:{loc.character}** -> {loc.url}")
+            output.append(
+                f"- **{loc.repository}/{loc.path}#L{loc.line}:{loc.character}** -> {loc.url}"
+            )
         return "\n".join(output)
 
     def format_definitions(self, locations: List[CodeIntelLocation]) -> str:

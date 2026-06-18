@@ -2,8 +2,15 @@ import httpx
 from typing import Any, Dict, List, Optional
 
 from sourcegraph_search.models import (
-    SymbolMatch, LineMatch, FileMatchResult, CommitResult, RepositoryResult,
-    SearchResults, TreeEntry, CodeIntelLocation, CodeIntelResult
+    SymbolMatch,
+    LineMatch,
+    FileMatchResult,
+    CommitResult,
+    RepositoryResult,
+    SearchResults,
+    TreeEntry,
+    CodeIntelLocation,
+    CodeIntelResult,
 )
 
 GRAPHQL_SEARCH_QUERY = """
@@ -144,9 +151,12 @@ query CodeIntel($repo: String!, $rev: String!, $path: String!, $line: Int!, $cha
 }
 """
 
+
 class SourcegraphError(Exception):
     """Base exception for Sourcegraph client errors."""
+
     pass
+
 
 class SourcegraphClient:
     def __init__(
@@ -170,10 +180,7 @@ class SourcegraphClient:
         if self.token:
             headers["Authorization"] = f"token {self.token}"
 
-        payload = {
-            "query": query,
-            "variables": variables
-        }
+        payload = {"query": query, "variables": variables}
 
         try:
             response = self.client.post(url, headers=headers, json=payload)
@@ -181,12 +188,12 @@ class SourcegraphClient:
                 raise SourcegraphError(
                     f"Request failed with status code {response.status_code}: {response.text}"
                 )
-            
+
             data = response.json()
             if "errors" in data and data["errors"]:
                 err_msg = "; ".join(e.get("message", str(e)) for e in data["errors"])
                 raise SourcegraphError(f"GraphQL Error: {err_msg}")
-            
+
             return data
         except httpx.RequestError as exc:
             raise SourcegraphError(f"HTTP request error: {exc}")
@@ -196,86 +203,93 @@ class SourcegraphClient:
     def search(self, query: str) -> SearchResults:
         """Performs a search query against Sourcegraph's GraphQL API and returns typed SearchResults."""
         data = self._post_graphql(GRAPHQL_SEARCH_QUERY, {"query": query})
-        
+
         try:
             search_data = data["data"]["search"]["results"]
             match_count = int(search_data.get("matchCount", 0))
             result_count = int(search_data.get("resultCount", 0))
             limit_hit = bool(search_data.get("limitHit", False))
-            
+
             items = []
             raw_results = search_data.get("results", [])
             for res in raw_results:
                 if not isinstance(res, dict):
                     continue
                 typename = res.get("__typename")
-                
+
                 if typename == "FileMatch":
                     repo = res.get("repository", {})
                     file = res.get("file", {})
                     line_matches_raw = res.get("lineMatches", [])
                     symbols_raw = res.get("symbols", [])
-                    
+
                     line_matches = [
                         LineMatch(
                             line_number=int(lm.get("lineNumber", 0)),
-                            preview=lm.get("preview", "")
+                            preview=lm.get("preview", ""),
                         )
-                        for lm in line_matches_raw if isinstance(lm, dict)
+                        for lm in line_matches_raw
+                        if isinstance(lm, dict)
                     ]
-                    
+
                     symbols = [
                         SymbolMatch(
                             name=sym.get("name", ""),
                             kind=sym.get("kind", ""),
                             container_name=sym.get("containerName", ""),
-                            url=sym.get("url", "")
+                            url=sym.get("url", ""),
                         )
-                        for sym in symbols_raw if isinstance(sym, dict)
+                        for sym in symbols_raw
+                        if isinstance(sym, dict)
                     ]
-                    
-                    items.append(FileMatchResult(
-                        repository=repo.get("name", ""),
-                        path=file.get("path", ""),
-                        url=file.get("url", ""),
-                        content=file.get("content", ""),
-                        line_matches=line_matches,
-                        symbols=symbols
-                    ))
-                    
+
+                    items.append(
+                        FileMatchResult(
+                            repository=repo.get("name", ""),
+                            path=file.get("path", ""),
+                            url=file.get("url", ""),
+                            content=file.get("content", ""),
+                            line_matches=line_matches,
+                            symbols=symbols,
+                        )
+                    )
+
                 elif typename == "CommitSearchResult":
                     commit = res.get("commit", {})
                     url = res.get("url", "")
-                    
+
                     oid = commit.get("oid", "")
                     message = commit.get("message", "")
                     author = commit.get("author", {})
                     person = author.get("person", {})
                     author_name = person.get("name", "")
                     author_date = author.get("date", "")
-                    
+
                     repo = commit.get("repository", {})
-                    
-                    items.append(CommitResult(
-                        repository=repo.get("name", ""),
-                        oid=oid,
-                        message=message,
-                        author_name=author_name,
-                        author_date=author_date,
-                        url=url
-                    ))
-                    
+
+                    items.append(
+                        CommitResult(
+                            repository=repo.get("name", ""),
+                            oid=oid,
+                            message=message,
+                            author_name=author_name,
+                            author_date=author_date,
+                            url=url,
+                        )
+                    )
+
                 elif typename == "Repository":
-                    items.append(RepositoryResult(
-                        name=res.get("name", ""),
-                        url=res.get("url", "")
-                    ))
-            
+                    items.append(
+                        RepositoryResult(
+                            name=res.get("name", ""), url=res.get("url", "")
+                        )
+                    )
+
             return SearchResults(
                 match_count=match_count,
                 result_count=result_count,
                 limit_hit=limit_hit,
-                items=items
+                items=items,
             )
         except (KeyError, TypeError) as exc:
             raise SourcegraphError(f"Failed to parse search response: {exc}")
@@ -283,8 +297,7 @@ class SourcegraphClient:
     def get_file_content(self, repo: str, path: str, rev: str = "HEAD") -> str:
         """Retrieves raw content of a file directly."""
         data = self._post_graphql(
-            GRAPHQL_FILE_CONTENT_QUERY,
-            {"repo": repo, "rev": rev, "path": path}
+            GRAPHQL_FILE_CONTENT_QUERY, {"repo": repo, "rev": rev, "path": path}
         )
         try:
             repository = data["data"]["repository"]
@@ -300,11 +313,12 @@ class SourcegraphClient:
         except (KeyError, TypeError) as exc:
             raise SourcegraphError(f"Failed to parse file content response: {exc}")
 
-    def get_file_tree(self, repo: str, path: str = "", rev: str = "HEAD") -> List[TreeEntry]:
+    def get_file_tree(
+        self, repo: str, path: str = "", rev: str = "HEAD"
+    ) -> List[TreeEntry]:
         """Retrieves tree/entries inside a path."""
         data = self._post_graphql(
-            GRAPHQL_FILE_TREE_QUERY,
-            {"repo": repo, "rev": rev, "path": path}
+            GRAPHQL_FILE_TREE_QUERY, {"repo": repo, "rev": rev, "path": path}
         )
         try:
             repository = data["data"]["repository"]
@@ -316,16 +330,17 @@ class SourcegraphClient:
             tree = commit["tree"]
             if not tree:
                 raise SourcegraphError(f"Path not found in {repo}@{rev}: {path}")
-            
+
             raw_entries = tree.get("entries") or []
             return [
                 TreeEntry(
                     name=entry.get("name", ""),
                     path=entry.get("path", ""),
                     is_directory=bool(entry.get("isDirectory", False)),
-                    url=entry.get("url", "")
+                    url=entry.get("url", ""),
                 )
-                for entry in raw_entries if isinstance(entry, dict)
+                for entry in raw_entries
+                if isinstance(entry, dict)
             ]
         except (KeyError, TypeError) as exc:
             raise SourcegraphError(f"Failed to parse file tree response: {exc}")
@@ -336,7 +351,13 @@ class SourcegraphClient:
         """Retrieves definitions and references from SCIP/LSIF code navigation."""
         data = self._post_graphql(
             GRAPHQL_CODE_INTEL_QUERY,
-            {"repo": repo, "rev": rev, "path": path, "line": line, "character": character}
+            {
+                "repo": repo,
+                "rev": rev,
+                "path": path,
+                "line": line,
+                "character": character,
+            },
         )
         try:
             repository = data["data"]["repository"]
@@ -348,12 +369,16 @@ class SourcegraphClient:
             blob = commit["blob"]
             if not blob:
                 raise SourcegraphError(f"File not found in {repo}@{rev}: {path}")
-            
+
             lsif = blob.get("lsif")
             if not lsif:
-                raise SourcegraphError(f"Precise code intelligence (LSIF/SCIP) is not indexed/enabled for {repo}@{rev}")
-            
-            def _parse_locations(nodes: List[Dict[str, Any]]) -> List[CodeIntelLocation]:
+                raise SourcegraphError(
+                    f"Precise code intelligence (LSIF/SCIP) is not indexed/enabled for {repo}@{rev}"
+                )
+
+            def _parse_locations(
+                nodes: List[Dict[str, Any]],
+            ) -> List[CodeIntelLocation]:
                 locations = []
                 for node in nodes:
                     if not isinstance(node, dict):
@@ -362,25 +387,27 @@ class SourcegraphClient:
                     repo_info = res.get("repository", {})
                     rng = node.get("range", {})
                     start = rng.get("start", {})
-                    
+
                     line_num = int(start.get("line", 0)) + 1
                     char_num = int(start.get("character", 0)) + 1
-                    
-                    locations.append(CodeIntelLocation(
-                        repository=repo_info.get("name", ""),
-                        path=res.get("path", ""),
-                        line=line_num,
-                        character=char_num,
-                        url=node.get("url", "")
-                    ))
+
+                    locations.append(
+                        CodeIntelLocation(
+                            repository=repo_info.get("name", ""),
+                            path=res.get("path", ""),
+                            line=line_num,
+                            character=char_num,
+                            url=node.get("url", ""),
+                        )
+                    )
                 return locations
 
             definitions_raw = lsif.get("definitions", {}).get("nodes", []) or []
             references_raw = lsif.get("references", {}).get("nodes", []) or []
-            
+
             return CodeIntelResult(
                 definitions=_parse_locations(definitions_raw),
-                references=_parse_locations(references_raw)
+                references=_parse_locations(references_raw),
             )
         except (KeyError, TypeError) as exc:
             raise SourcegraphError(f"Failed to parse code intelligence response: {exc}")
