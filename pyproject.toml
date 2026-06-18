@@ -1,12 +1,25 @@
 [project]
 name = "sourcegraph-search"
 version = "0.1.0"
-description = "Add your description here"
+description = "A CLI and client library for searching code and exploring code intelligence on Sourcegraph."
 readme = "README.md"
+license = { text = "MIT" }
 authors = [
     { name = "twn39", email = "twn39@163.com" }
 ]
 requires-python = ">=3.11"
+keywords = ["sourcegraph", "search", "code-intelligence", "lsif", "scip", "async", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "typer>=0.26.7",
     "httpx>=0.27.0",
@@ -23,4 +36,6 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.0",
     "pytest-mock>=3.15.1",
+    "anyio>=4.0.0",
+    "ruff>=0.1.0",
 ]
