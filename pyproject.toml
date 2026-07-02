@@ -1,6 +1,6 @@
 [project]
 name = "sourcegraph-search"
-version = "0.1.0"
+version = "0.2.0"
 description = "A CLI and client library for searching code and exploring code intelligence on Sourcegraph."
 readme = "README.md"
 license = { text = "MIT" }
