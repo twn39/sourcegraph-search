@@ -1,5 +1,5 @@
 import httpx
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from sourcegraph_search.models import (
     SearchResults,
@@ -84,6 +84,49 @@ class BaseSourcegraphClient:
             err_msg = "; ".join(e.get("message", str(e)) for e in data["errors"])
             raise SourcegraphError(f"GraphQL Error: {err_msg}")
 
+    def _prepare_search(
+        self, query: str, fetch_content: bool
+    ) -> Tuple[str, Dict[str, Any]]:
+        query_str = (
+            GRAPHQL_SEARCH_WITH_CONTENT_QUERY if fetch_content else GRAPHQL_SEARCH_QUERY
+        )
+        return query_str, {"query": query}
+
+    def _prepare_file_content(
+        self, repo: str, path: str, rev: str
+    ) -> Tuple[str, Dict[str, Any]]:
+        return GRAPHQL_FILE_CONTENT_QUERY, {"repo": repo, "rev": rev, "path": path}
+
+    def _prepare_file_tree(
+        self, repo: str, path: str, rev: str
+    ) -> Tuple[str, Dict[str, Any]]:
+        return GRAPHQL_FILE_TREE_QUERY, {"repo": repo, "rev": rev, "path": path}
+
+    def _prepare_code_intel(
+        self, repo: str, path: str, line: int, character: int, rev: str
+    ) -> Tuple[str, Dict[str, Any]]:
+        return GRAPHQL_CODE_INTEL_QUERY, {
+            "repo": repo,
+            "rev": rev,
+            "path": path,
+            "line": line,
+            "character": character,
+        }
+
+    def _process_response(
+        self, status_code: int, text: str, json_func: Any
+    ) -> Dict[str, Any]:
+        if status_code != 200:
+            raise SourcegraphError(
+                f"Request failed with status code {status_code}: {text}"
+            )
+        try:
+            data = json_func()
+            self._check_graphql_errors(data)
+            return data
+        except ValueError as exc:
+            raise SourcegraphError(f"Failed to parse JSON response: {exc}")
+
 
 class SourcegraphClient(BaseSourcegraphClient):
     def __init__(
@@ -91,9 +134,11 @@ class SourcegraphClient(BaseSourcegraphClient):
         endpoint: str = "https://sourcegraph.com",
         token: Optional[str] = None,
         timeout: float = 30.0,
+        client: Optional[httpx.Client] = None,
     ):
         super().__init__(endpoint=endpoint, token=token, timeout=timeout)
-        self.client = httpx.Client(timeout=timeout)
+        self.client = client or httpx.Client(timeout=timeout)
+        self._external_client = client is not None
 
     def __enter__(self) -> "SourcegraphClient":
         return self
@@ -102,7 +147,8 @@ class SourcegraphClient(BaseSourcegraphClient):
         self.close()
 
     def close(self):
-        self.client.close()
+        if not self._external_client:
+            self.client.close()
 
     def _post_graphql(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
         """Helper to send a GraphQL request to Sourcegraph."""
@@ -112,60 +158,41 @@ class SourcegraphClient(BaseSourcegraphClient):
 
         try:
             response = self.client.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
-                raise SourcegraphError(
-                    f"Request failed with status code {response.status_code}: {response.text}"
-                )
-
-            data = response.json()
-            self._check_graphql_errors(data)
-            return data
+            return self._process_response(
+                response.status_code, response.text, response.json
+            )
         except httpx.RequestError as exc:
             raise SourcegraphError(f"HTTP request error: {exc}")
-        except ValueError as exc:
-            raise SourcegraphError(f"Failed to parse JSON response: {exc}")
 
     def search(self, query: str, fetch_content: bool = False) -> SearchResults:
         """Performs a search query against Sourcegraph's GraphQL API and returns typed SearchResults.
 
         Set fetch_content=True to preload file contents for context windows (slower/more memory).
         """
-        query_str = (
-            GRAPHQL_SEARCH_WITH_CONTENT_QUERY if fetch_content else GRAPHQL_SEARCH_QUERY
-        )
-        data = self._post_graphql(query_str, {"query": query})
+        q, vars = self._prepare_search(query, fetch_content)
+        data = self._post_graphql(q, vars)
         return parse_search_response(data)
 
     def get_file_content(self, repo: str, path: str, rev: str = "HEAD") -> str:
         """Retrieves raw content of a file directly."""
-        data = self._post_graphql(
-            GRAPHQL_FILE_CONTENT_QUERY, {"repo": repo, "rev": rev, "path": path}
-        )
+        q, vars = self._prepare_file_content(repo, path, rev)
+        data = self._post_graphql(q, vars)
         return parse_file_content_response(data, repo, rev, path)
 
     def get_file_tree(
         self, repo: str, path: str = "", rev: str = "HEAD"
     ) -> List[TreeEntry]:
         """Retrieves tree/entries inside a path."""
-        data = self._post_graphql(
-            GRAPHQL_FILE_TREE_QUERY, {"repo": repo, "rev": rev, "path": path}
-        )
+        q, vars = self._prepare_file_tree(repo, path, rev)
+        data = self._post_graphql(q, vars)
         return parse_file_tree_response(data, repo, rev, path)
 
     def get_code_intel(
         self, repo: str, path: str, line: int, character: int, rev: str = "HEAD"
     ) -> CodeIntelResult:
         """Retrieves definitions and references from SCIP/LSIF code navigation."""
-        data = self._post_graphql(
-            GRAPHQL_CODE_INTEL_QUERY,
-            {
-                "repo": repo,
-                "rev": rev,
-                "path": path,
-                "line": line,
-                "character": character,
-            },
-        )
+        q, vars = self._prepare_code_intel(repo, path, line, character, rev)
+        data = self._post_graphql(q, vars)
         return parse_code_intel_response(data, repo, rev, path)
 
 
@@ -175,9 +202,11 @@ class AsyncSourcegraphClient(BaseSourcegraphClient):
         endpoint: str = "https://sourcegraph.com",
         token: Optional[str] = None,
         timeout: float = 30.0,
+        client: Optional[httpx.AsyncClient] = None,
     ):
         super().__init__(endpoint=endpoint, token=token, timeout=timeout)
-        self.client = httpx.AsyncClient(timeout=timeout)
+        self.client = client or httpx.AsyncClient(timeout=timeout)
+        self._external_client = client is not None
 
     async def __aenter__(self) -> "AsyncSourcegraphClient":
         return self
@@ -186,7 +215,8 @@ class AsyncSourcegraphClient(BaseSourcegraphClient):
         await self.close()
 
     async def close(self):
-        await self.client.aclose()
+        if not self._external_client:
+            await self.client.aclose()
 
     async def _post_graphql(
         self, query: str, variables: Dict[str, Any]
@@ -198,58 +228,39 @@ class AsyncSourcegraphClient(BaseSourcegraphClient):
 
         try:
             response = await self.client.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
-                raise SourcegraphError(
-                    f"Request failed with status code {response.status_code}: {response.text}"
-                )
-
-            data = response.json()
-            self._check_graphql_errors(data)
-            return data
+            return self._process_response(
+                response.status_code, response.text, response.json
+            )
         except httpx.RequestError as exc:
             raise SourcegraphError(f"HTTP request error: {exc}")
-        except ValueError as exc:
-            raise SourcegraphError(f"Failed to parse JSON response: {exc}")
 
     async def search(self, query: str, fetch_content: bool = False) -> SearchResults:
         """Performs an asynchronous search query against Sourcegraph's GraphQL API.
 
         Set fetch_content=True to preload file contents for context windows (slower/more memory).
         """
-        query_str = (
-            GRAPHQL_SEARCH_WITH_CONTENT_QUERY if fetch_content else GRAPHQL_SEARCH_QUERY
-        )
-        data = await self._post_graphql(query_str, {"query": query})
+        q, vars = self._prepare_search(query, fetch_content)
+        data = await self._post_graphql(q, vars)
         return parse_search_response(data)
 
     async def get_file_content(self, repo: str, path: str, rev: str = "HEAD") -> str:
         """Retrieves raw content of a file asynchronously."""
-        data = await self._post_graphql(
-            GRAPHQL_FILE_CONTENT_QUERY, {"repo": repo, "rev": rev, "path": path}
-        )
+        q, vars = self._prepare_file_content(repo, path, rev)
+        data = await self._post_graphql(q, vars)
         return parse_file_content_response(data, repo, rev, path)
 
     async def get_file_tree(
         self, repo: str, path: str = "", rev: str = "HEAD"
     ) -> List[TreeEntry]:
         """Retrieves tree/entries inside a path asynchronously."""
-        data = await self._post_graphql(
-            GRAPHQL_FILE_TREE_QUERY, {"repo": repo, "rev": rev, "path": path}
-        )
+        q, vars = self._prepare_file_tree(repo, path, rev)
+        data = await self._post_graphql(q, vars)
         return parse_file_tree_response(data, repo, rev, path)
 
     async def get_code_intel(
         self, repo: str, path: str, line: int, character: int, rev: str = "HEAD"
     ) -> CodeIntelResult:
         """Retrieves definitions and references asynchronously."""
-        data = await self._post_graphql(
-            GRAPHQL_CODE_INTEL_QUERY,
-            {
-                "repo": repo,
-                "rev": rev,
-                "path": path,
-                "line": line,
-                "character": character,
-            },
-        )
+        q, vars = self._prepare_code_intel(repo, path, line, character, rev)
+        data = await self._post_graphql(q, vars)
         return parse_code_intel_response(data, repo, rev, path)

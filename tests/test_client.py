@@ -552,3 +552,24 @@ async def test_async_search_parsing_with_content(mocker):
     mock_post.assert_called_once_with(
         GRAPHQL_SEARCH_WITH_CONTENT_QUERY, {"query": "test"}
     )
+
+
+def test_client_injection_sync(mocker):
+    mock_httpx_client = mocker.MagicMock()
+    client = SourcegraphClient(client=mock_httpx_client)
+    assert client.client is mock_httpx_client
+    assert client._external_client is True
+
+    client.close()
+    mock_httpx_client.close.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_client_injection_async(mocker):
+    mock_httpx_client = mocker.MagicMock()
+    client = AsyncSourcegraphClient(client=mock_httpx_client)
+    assert client.client is mock_httpx_client
+    assert client._external_client is True
+
+    await client.close()
+    mock_httpx_client.aclose.assert_not_called()
