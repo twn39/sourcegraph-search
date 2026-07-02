@@ -573,3 +573,19 @@ async def test_client_injection_async(mocker):
 
     await client.close()
     mock_httpx_client.aclose.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_protocols_conformance():
+    from sourcegraph_search.client import (
+        SourcegraphClientProtocol,
+        AsyncSourcegraphClientProtocol,
+    )
+
+    sync_client = SourcegraphClient()
+    assert isinstance(sync_client, SourcegraphClientProtocol)
+    sync_client.close()
+
+    async_client = AsyncSourcegraphClient()
+    assert isinstance(async_client, AsyncSourcegraphClientProtocol)
+    await async_client.close()

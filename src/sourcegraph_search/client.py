@@ -1,5 +1,5 @@
 import httpx
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 from sourcegraph_search.models import (
     SearchResults,
@@ -27,6 +27,7 @@ __all__ = [
     "AsyncSourcegraphClient",
     "SourcegraphError",
     "SourcegraphClientProtocol",
+    "AsyncSourcegraphClientProtocol",
     "GRAPHQL_SEARCH_QUERY",
     "GRAPHQL_SEARCH_WITH_CONTENT_QUERY",
     "GRAPHQL_FILE_CONTENT_QUERY",
@@ -35,6 +36,7 @@ __all__ = [
 ]
 
 
+@runtime_checkable
 class SourcegraphClientProtocol(Protocol):
     """Sourcegraph 同步客户端接口协议，解耦具体实现"""
 
@@ -51,6 +53,29 @@ class SourcegraphClientProtocol(Protocol):
     ) -> CodeIntelResult: ...
 
     def close(self) -> None: ...
+
+
+@runtime_checkable
+class AsyncSourcegraphClientProtocol(Protocol):
+    """Sourcegraph 异步客户端接口协议，解耦具体实现"""
+
+    async def search(
+        self, query: str, fetch_content: bool = False
+    ) -> SearchResults: ...
+
+    async def get_file_content(
+        self, repo: str, path: str, rev: str = "HEAD"
+    ) -> str: ...
+
+    async def get_file_tree(
+        self, repo: str, path: str = "", rev: str = "HEAD"
+    ) -> List[TreeEntry]: ...
+
+    async def get_code_intel(
+        self, repo: str, path: str, line: int, character: int, rev: str = "HEAD"
+    ) -> CodeIntelResult: ...
+
+    async def close(self) -> None: ...
 
 
 class BaseSourcegraphClient:
