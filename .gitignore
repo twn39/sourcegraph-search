@@ -139,3 +139,7 @@ Icon?
 /crush
 .codegraph/
 AGENTS.md
+.agents/
+.crush/
+.codex/
+.claude/

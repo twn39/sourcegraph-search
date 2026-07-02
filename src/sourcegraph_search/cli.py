@@ -7,6 +7,7 @@ from sourcegraph_search.client import (
     SourcegraphClientProtocol,
 )
 from sourcegraph_search.formatters import MarkdownFormatter, JSONFormatter
+from sourcegraph_search.installer import skills_app
 
 app = typer.Typer(
     help="CLI tool to search code and navigate definitions/references via Sourcegraph's GraphQL API.",
@@ -228,6 +229,9 @@ def refs_cmd(
     except SourcegraphError as err:
         typer.secho(f"Error: {err}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+
+
+app.add_typer(skills_app)
 
 
 if __name__ == "__main__":
