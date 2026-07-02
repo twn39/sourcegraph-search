@@ -1,10 +1,13 @@
 import pytest
 from sourcegraph_search.parsers import (
-    SourcegraphError,
     parse_search_response,
     parse_file_content_response,
     parse_file_tree_response,
     parse_code_intel_response,
+)
+from sourcegraph_search.exceptions import (
+    APIError,
+    ResponseParseError,
 )
 from sourcegraph_search.models import (
     SearchResults,
@@ -50,7 +53,7 @@ def test_parse_search_response_success():
 
 def test_parse_search_response_malformed():
     data = {"data": {"search": None}}
-    with pytest.raises(SourcegraphError):
+    with pytest.raises(ResponseParseError):
         parse_search_response(data)
 
 
@@ -62,7 +65,7 @@ def test_parse_file_content_success():
 
 def test_parse_file_content_missing_repo():
     data = {"data": {"repository": None}}
-    with pytest.raises(SourcegraphError) as exc:
+    with pytest.raises(APIError) as exc:
         parse_file_content_response(data, "repo", "main", "file.py")
     assert "Repository not found" in str(exc.value)
 

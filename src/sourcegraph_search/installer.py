@@ -12,28 +12,39 @@ skills_app = typer.Typer(
 )
 
 
+def _safe_resolve(base_dir: Path, relative_path: str) -> Optional[Path]:
+    """Safely resolve relative_path under base_dir, preventing directory traversal."""
+    try:
+        resolved_path = (base_dir / relative_path).resolve()
+        if resolved_path.is_relative_to(base_dir.resolve()):
+            if resolved_path.exists():
+                return resolved_path
+    except (ValueError, RuntimeError):
+        pass
+    return None
+
+
 def _get_resource_path(relative_path: str) -> Path:
     """Retrieve absolute path to a resource inside the package, or fallback to dev workspace."""
     # Packaged path (inside installed package under resources)
-    path = Path(__file__).parent / "resources" / relative_path
-    if path.exists():
-        return path
+    base_packaged = (Path(__file__).parent / "resources").resolve()
+    resolved = _safe_resolve(base_packaged, relative_path)
+    if resolved:
+        return resolved
 
     # Dev workspace fallback 1 (relative to project root)
-    fallback = (
-        Path(__file__).parent.parent.parent
-        / "src"
-        / "sourcegraph_search"
-        / "resources"
-        / relative_path
-    )
-    if fallback.exists():
-        return fallback
+    base_fallback_1 = (
+        Path(__file__).parent.parent.parent / "src" / "sourcegraph_search" / "resources"
+    ).resolve()
+    resolved = _safe_resolve(base_fallback_1, relative_path)
+    if resolved:
+        return resolved
 
     # Dev workspace fallback 2 (direct relative path from root)
-    fallback_root = Path(__file__).parent.parent.parent / relative_path
-    if fallback_root.exists():
-        return fallback_root
+    base_fallback_2 = Path(__file__).parent.parent.parent.resolve()
+    resolved = _safe_resolve(base_fallback_2, relative_path)
+    if resolved:
+        return resolved
 
     raise FileNotFoundError(
         f"Resource {relative_path} not found in package or workspace."

@@ -10,12 +10,10 @@ from sourcegraph_search.models import (
     CodeIntelLocation,
     CodeIntelResult,
 )
-
-
-class SourcegraphError(Exception):
-    """Base exception for Sourcegraph client errors."""
-
-    pass
+from sourcegraph_search.exceptions import (
+    APIError,
+    ResponseParseError,
+)
 
 
 def _parse_file_match(res: Dict[str, Any]) -> FileMatchResult:
@@ -113,7 +111,7 @@ def parse_search_response(data: Dict[str, Any]) -> SearchResults:
             items=items,
         )
     except (KeyError, TypeError) as exc:
-        raise SourcegraphError(f"Failed to parse search response: {exc}")
+        raise ResponseParseError(f"Failed to parse search response: {exc}")
 
 
 def parse_file_content_response(
@@ -122,16 +120,16 @@ def parse_file_content_response(
     try:
         repository = data["data"]["repository"]
         if not repository:
-            raise SourcegraphError(f"Repository not found: {repo}")
+            raise APIError(f"Repository not found: {repo}")
         commit = repository["commit"]
         if not commit:
-            raise SourcegraphError(f"Revision/Commit not found: {rev}")
+            raise APIError(f"Revision/Commit not found: {rev}")
         file_node = commit["file"]
         if not file_node:
-            raise SourcegraphError(f"File not found in {repo}@{rev}: {path}")
+            raise APIError(f"File not found in {repo}@{rev}: {path}")
         return file_node["content"]
     except (KeyError, TypeError) as exc:
-        raise SourcegraphError(f"Failed to parse file content response: {exc}")
+        raise ResponseParseError(f"Failed to parse file content response: {exc}")
 
 
 def parse_file_tree_response(
@@ -140,13 +138,13 @@ def parse_file_tree_response(
     try:
         repository = data["data"]["repository"]
         if not repository:
-            raise SourcegraphError(f"Repository not found: {repo}")
+            raise APIError(f"Repository not found: {repo}")
         commit = repository["commit"]
         if not commit:
-            raise SourcegraphError(f"Revision/Commit not found: {rev}")
+            raise APIError(f"Revision/Commit not found: {rev}")
         tree = commit["tree"]
         if not tree:
-            raise SourcegraphError(f"Path not found in {repo}@{rev}: {path}")
+            raise APIError(f"Path not found in {repo}@{rev}: {path}")
 
         raw_entries = tree.get("entries") or []
         return [
@@ -160,7 +158,7 @@ def parse_file_tree_response(
             if isinstance(entry, dict)
         ]
     except (KeyError, TypeError) as exc:
-        raise SourcegraphError(f"Failed to parse file tree response: {exc}")
+        raise ResponseParseError(f"Failed to parse file tree response: {exc}")
 
 
 def _parse_locations(nodes: List[Dict[str, Any]]) -> List[CodeIntelLocation]:
@@ -194,17 +192,17 @@ def parse_code_intel_response(
     try:
         repository = data["data"]["repository"]
         if not repository:
-            raise SourcegraphError(f"Repository not found: {repo}")
+            raise APIError(f"Repository not found: {repo}")
         commit = repository["commit"]
         if not commit:
-            raise SourcegraphError(f"Revision/Commit not found: {rev}")
+            raise APIError(f"Revision/Commit not found: {rev}")
         blob = commit["blob"]
         if not blob:
-            raise SourcegraphError(f"File not found in {repo}@{rev}: {path}")
+            raise APIError(f"File not found in {repo}@{rev}: {path}")
 
         lsif = blob.get("lsif")
         if not lsif:
-            raise SourcegraphError(
+            raise APIError(
                 f"Precise code intelligence (LSIF/SCIP) is not indexed/enabled for {repo}@{rev}"
             )
 
@@ -216,4 +214,4 @@ def parse_code_intel_response(
             references=_parse_locations(references_raw),
         )
     except (KeyError, TypeError) as exc:
-        raise SourcegraphError(f"Failed to parse code intelligence response: {exc}")
+        raise ResponseParseError(f"Failed to parse code intelligence response: {exc}")

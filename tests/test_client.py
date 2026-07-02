@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from sourcegraph_search.client import (
     SourcegraphClient,
     AsyncSourcegraphClient,
-    SourcegraphError,
+    APIError,
 )
 from sourcegraph_search.models import (
     SearchResults,
@@ -45,7 +45,7 @@ def test_post_graphql_non_200(mocker):
 
     mocker.patch("httpx.Client.post", return_value=mock_response)
 
-    with pytest.raises(SourcegraphError) as exc_info:
+    with pytest.raises(APIError) as exc_info:
         client._post_graphql("query { foo }", {})
     assert "Request failed with status code 500" in str(exc_info.value)
 
@@ -58,7 +58,7 @@ def test_post_graphql_api_errors(mocker):
 
     mocker.patch("httpx.Client.post", return_value=mock_response)
 
-    with pytest.raises(SourcegraphError) as exc_info:
+    with pytest.raises(APIError) as exc_info:
         client._post_graphql("query { foo }", {})
     assert "GraphQL Error: Some API error" in str(exc_info.value)
 
@@ -292,7 +292,7 @@ async def test_async_post_graphql_non_200(mocker):
 
     mocker.patch("httpx.AsyncClient.post", return_value=mock_response)
 
-    with pytest.raises(SourcegraphError) as exc_info:
+    with pytest.raises(APIError) as exc_info:
         await client._post_graphql("query { foo }", {})
     assert "Request failed with status code 500" in str(exc_info.value)
 
@@ -306,7 +306,7 @@ async def test_async_post_graphql_api_errors(mocker):
 
     mocker.patch("httpx.AsyncClient.post", return_value=mock_response)
 
-    with pytest.raises(SourcegraphError) as exc_info:
+    with pytest.raises(APIError) as exc_info:
         await client._post_graphql("query { foo }", {})
     assert "GraphQL Error: Some API error" in str(exc_info.value)
 

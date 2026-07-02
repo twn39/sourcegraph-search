@@ -14,11 +14,16 @@ from sourcegraph_search.queries import (
     GRAPHQL_CODE_INTEL_QUERY,
 )
 from sourcegraph_search.parsers import (
-    SourcegraphError,
     parse_search_response,
     parse_file_content_response,
     parse_file_tree_response,
     parse_code_intel_response,
+)
+from sourcegraph_search.exceptions import (
+    SourcegraphError,
+    NetworkError,
+    ResponseParseError,
+    APIError,
 )
 
 # Re-exports for backward compatibility
@@ -26,6 +31,9 @@ __all__ = [
     "SourcegraphClient",
     "AsyncSourcegraphClient",
     "SourcegraphError",
+    "NetworkError",
+    "ResponseParseError",
+    "APIError",
     "SourcegraphClientProtocol",
     "AsyncSourcegraphClientProtocol",
     "GRAPHQL_SEARCH_QUERY",
@@ -107,7 +115,7 @@ class BaseSourcegraphClient:
     def _check_graphql_errors(self, data: Dict[str, Any]) -> None:
         if "errors" in data and data["errors"]:
             err_msg = "; ".join(e.get("message", str(e)) for e in data["errors"])
-            raise SourcegraphError(f"GraphQL Error: {err_msg}")
+            raise APIError(f"GraphQL Error: {err_msg}")
 
     def _prepare_search(
         self, query: str, fetch_content: bool
@@ -142,15 +150,13 @@ class BaseSourcegraphClient:
         self, status_code: int, text: str, json_func: Any
     ) -> Dict[str, Any]:
         if status_code != 200:
-            raise SourcegraphError(
-                f"Request failed with status code {status_code}: {text}"
-            )
+            raise APIError(f"Request failed with status code {status_code}: {text}")
         try:
             data = json_func()
             self._check_graphql_errors(data)
             return data
         except ValueError as exc:
-            raise SourcegraphError(f"Failed to parse JSON response: {exc}")
+            raise ResponseParseError(f"Failed to parse JSON response: {exc}")
 
 
 class SourcegraphClient(BaseSourcegraphClient):
@@ -187,7 +193,7 @@ class SourcegraphClient(BaseSourcegraphClient):
                 response.status_code, response.text, response.json
             )
         except httpx.RequestError as exc:
-            raise SourcegraphError(f"HTTP request error: {exc}")
+            raise NetworkError(f"HTTP request error: {exc}")
 
     def search(self, query: str, fetch_content: bool = False) -> SearchResults:
         """Performs a search query against Sourcegraph's GraphQL API and returns typed SearchResults.
@@ -257,7 +263,7 @@ class AsyncSourcegraphClient(BaseSourcegraphClient):
                 response.status_code, response.text, response.json
             )
         except httpx.RequestError as exc:
-            raise SourcegraphError(f"HTTP request error: {exc}")
+            raise NetworkError(f"HTTP request error: {exc}")
 
     async def search(self, query: str, fetch_content: bool = False) -> SearchResults:
         """Performs an asynchronous search query against Sourcegraph's GraphQL API.
